@@ -6,12 +6,20 @@ lapply(libs, require, character.only = TRUE)
 options(stringsAsFactors = FALSE)
 
 # set parameters
-candidates <- c("rob", "theresa")
-pathname <- "/Users/maybethursdayafternoon/Documents/GitHub/pci-email-machine-learning/emails"
+pathname <- "C:/Users/zallen/Documents/GitHub/pci-email-classification/emails"
+pathname.test <- sprintf("%s/%s", pathname, "test")
+pathname.train <- sprintf("%s/%s", pathname, "train")
+targets <- list.dirs(path = pathname.train, full.names = FALSE, recursive = FALSE)
+testCount <- length(list.files(path = pathname.train, recursive = TRUE))
 
 # clean text
+removeHtmlTags <- content_transformer(function(x, pattern) {
+  return (gsub("<.*?>", "", x))
+})
+
 cleanCorpus <- function(corpus) {
   corpus.tmp <- corpus
+  corpus.tmp <- tm_map(corpus.tmp, removeHtmlTags, mc.cores=1)
   corpus.tmp <- tm_map(corpus.tmp, removePunctuation, mc.cores=1)
   corpus.tmp <- tm_map(corpus.tmp, stripWhitespace, mc.cores=1)
   corpus.tmp <- tm_map(corpus.tmp, content_transformer(tolower), mc.cores=1)
@@ -21,45 +29,48 @@ cleanCorpus <- function(corpus) {
 
 
 # build TDM
-generateTDM <- function(cand, path) {
-  s.dir <- sprintf("%s/%s", path, cand)
+generateTDM <- function(target, path) {
+  s.dir <- sprintf("%s/%s", path, target)
   s.cor <- Corpus(DirSource(directory = s.dir, encoding = "UTF-8"))
   s.cor.cl <- cleanCorpus(s.cor)
   s.tdm <- TermDocumentMatrix(s.cor.cl)
   
   s.tdm <- removeSparseTerms(s.tdm, 0.3)
-  return <- list(name = cand, tdm = s.tdm)
+  return <- list(name = target, tdm = s.tdm)
 }
 
-tdm <- lapply(candidates, generateTDM, path = pathname)
+tdm <- lapply(targets, generateTDM, path = pathname.train)
+tdm <- append(tdm, lapply(targets, generateTDM, path = pathname.test))
 
 # attach name
-bindCandidateToTDM <- function(tdm) {
+bindTargetToTDM <- function(tdm) {
   s.mat <- t(data.matrix(tdm[["tdm"]]))
   s.df <- as.data.frame(s.mat, stringsAsFactors = FALSE)
   
   s.df <- cbind(s.df, rep(tdm[["name"]], nrow(s.df)))
-  colnames(s.df)[ncol(s.df)] <- "targetcandidate"
+  colnames(s.df)[ncol(s.df)] <- "__target"
   return(s.df)
 }
 
-candTDM <- lapply(tdm, bindCandidateToTDM)
+targetTDM <- lapply(tdm, bindTargetToTDM)
 
 # stack
-tdm.stack <- do.call(rbind.fill, candTDM)
+tdm.stack <- do.call(rbind.fill, targetTDM)
 tdm.stack[is.na(tdm.stack)] <- 0
 
 # hold-out
-train.idx <- sample(nrow(tdm.stack), ceiling(nrow(tdm.stack) * 0.7))
-test.idx <- (1:nrow(tdm.stack)) [- train.idx]
+# train.idx <- sample(nrow(train.tdm.stack), ceiling(nrow(train.tdm.stack) * 0.7))
+# test.idx <- (1:nrow(tdm.stack)) [- train.idx]
+train.idx <- (1:(nrow(tdm.stack)-testCount))
+test.idx <- ((nrow(tdm.stack)-testCount + 1):nrow(tdm.stack))
 
 # model - KNN
-tdm.cand <- tdm.stack[, "targetcandidate"]
-tdm.stack.nl <- tdm.stack[, !colnames(tdm.stack) %in% "targetcandidate"]
+tdm.target <- tdm.stack[, "__target"]
+tdm.stack.nl <- tdm.stack[, !colnames(tdm.stack) %in% "__target"]
 
-knn.pred <- knn(tdm.stack.nl[train.idx, ], tdm.stack.nl[test.idx, ], tdm.cand[train.idx])
+knn.pred <- knn(tdm.stack.nl[train.idx, ], tdm.stack.nl[test.idx, ], tdm.target[train.idx])
 
 # accuracy
-conf.mat <- table("Predictions" = knn.pred, Actual = tdm.cand[test.idx])
+conf.mat <- table("Predictions" = knn.pred, Actual = tdm.target[test.idx])
 
 (accuracy <- sum(diag(conf.mat)) / length(test.idx) * 100)
