@@ -10,7 +10,7 @@ pathname <- "C:/Users/zallen/Documents/GitHub/pci-email-classification/emails"
 pathname.test <- sprintf("%s/%s", pathname, "test")
 pathname.train <- sprintf("%s/%s", pathname, "train")
 targets <- list.dirs(path = pathname.train, full.names = FALSE, recursive = FALSE)
-testCount <- length(list.files(path = pathname.train, recursive = TRUE))
+testCount <- length(list.files(path = pathname.test, recursive = TRUE))
 
 # clean text
 removeHtmlTags <- content_transformer(function(x, pattern) {
@@ -59,8 +59,6 @@ tdm.stack <- do.call(rbind.fill, targetTDM)
 tdm.stack[is.na(tdm.stack)] <- 0
 
 # hold-out
-# train.idx <- sample(nrow(train.tdm.stack), ceiling(nrow(train.tdm.stack) * 0.7))
-# test.idx <- (1:nrow(tdm.stack)) [- train.idx]
 train.idx <- (1:(nrow(tdm.stack)-testCount))
 test.idx <- ((nrow(tdm.stack)-testCount + 1):nrow(tdm.stack))
 
@@ -70,7 +68,17 @@ tdm.stack.nl <- tdm.stack[, !colnames(tdm.stack) %in% "__target"]
 
 knn.pred <- knn(tdm.stack.nl[train.idx, ], tdm.stack.nl[test.idx, ], tdm.target[train.idx])
 
-# accuracy
-conf.mat <- table("Predictions" = knn.pred, Actual = tdm.target[test.idx])
+# results
+testTdm.idx <- (length(tdm)-testCount + 1):(length(tdm))
+testTdm <- tdm[testTdm.idx]
+correct <- 0
+for (idx in (1:length(testTdm.idx))) {
+  t <- testTdm[[idx]]
+  r <- t$tdm$dimnames$Docs
+  r <- paste(r, "pred:", knn.pred[idx])
+  r <- paste(r, "; actual:", t$name, ";") 
+  if (knn.pred[idx] == t$name) correct <- correct + 1
+  print(r)
+}
 
-(accuracy <- sum(diag(conf.mat)) / length(test.idx) * 100)
+print(paste(correct, "out of", length(testTdm.idx), "correct", "-", (correct/length(testTdm.idx)*100), "%"))
