@@ -69,16 +69,26 @@ tdm.stack.nl <- tdm.stack[, !colnames(tdm.stack) %in% "__target"]
 knn.pred <- knn(tdm.stack.nl[train.idx, ], tdm.stack.nl[test.idx, ], tdm.target[train.idx])
 
 # results
-testTdm.idx <- (length(tdm)-testCount + 1):(length(tdm))
+testTdm.idx <- (((length(tdm)/2)+1):(length(tdm)))
 testTdm <- tdm[testTdm.idx]
 correct <- 0
-for (idx in (1:length(testTdm.idx))) {
-  t <- testTdm[[idx]]
-  r <- t$tdm$dimnames$Docs
+targetIdx <- 1
+
+testDocs <- c()
+actualTargets <- c()
+for (idx in (1:length(targets))) {
+  for (d in (1:length(testTdm[[idx]]$tdm$dimnames$Docs))) {
+      docs <- c(testTdm[[idx]]$tdm$dimnames$Docs[d], as.list(testDocs))
+      actualTargets <- c(testTdm[[idx]]$name, as.list(actualTargets))
+  }
+}
+
+for (idx in (1:length(knn.pred))) {
+  r <- testDocs[idx]
   r <- paste(r, "pred:", knn.pred[idx])
-  r <- paste(r, "; actual:", t$name, ";") 
-  if (knn.pred[idx] == t$name) correct <- correct + 1
+  r <- paste(r, "; actual:", actualTargets[idx], ";")
+  if (knn.pred[idx] == actualTargets[idx]) correct <- correct + 1
   print(r)
 }
 
-print(paste(correct, "out of", length(testTdm.idx), "correct", "-", (correct/length(testTdm.idx)*100), "%"))
+print(paste(correct, "out of", length(knn.pred), "correct", "-", (correct/length(knn.pred)*100), "%"))
