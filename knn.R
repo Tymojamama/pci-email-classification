@@ -35,7 +35,7 @@ generateTDM <- function(target, path) {
   s.cor.cl <- cleanCorpus(s.cor)
   s.tdm <- TermDocumentMatrix(s.cor.cl)
   
-  s.tdm <- removeSparseTerms(s.tdm, 0.3)
+  s.tdm <- removeSparseTerms(s.tdm, 0.7)
   return <- list(name = target, tdm = s.tdm)
 }
 
@@ -78,7 +78,7 @@ testDocs <- c()
 actualTargets <- c()
 for (idx in (1:length(targets))) {
   for (d in (1:length(testTdm[[idx]]$tdm$dimnames$Docs))) {
-      docs <- c(testTdm[[idx]]$tdm$dimnames$Docs[d], as.list(testDocs))
+      testDocs <- c(testTdm[[idx]]$tdm$dimnames$Docs[d], as.list(testDocs))
       actualTargets <- c(testTdm[[idx]]$name, as.list(actualTargets))
   }
 }
